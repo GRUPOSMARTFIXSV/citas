@@ -124,11 +124,12 @@ if(PUBLICO){
       const tipo=TIPO(prompt);if(!tipo||!opts.images||!opts.images[0])throw Object.assign(new Error('no_soportado'),{code:'not_granted'});
       const r=await srv('leer',{tipo,imagen:await aB64(opts.images[0]),mime:'image/jpeg'});const x=r.resultado||{};if(tipo==='nrc'&&x.codigoGiro&&!x.giroCodigo)x.giroCodigo=x.codigoGiro;return x}};
   window.claude={use:async n=>n==='db'?shimDb:n==='sample'?shimSample:null};
+  {const l=document.querySelector('header .label');if(l)l.textContent='SmartFix SV';const pr=document.querySelector('.proto');if(pr)pr.remove();const tb=document.getElementById('tabs');if(tb)tb.hidden=true}
 }
 // ---------- Datos del catálogo (Catálogo de servicios SmartFix, 02/11/2026) ----------
 // modo: ok = se agenda · pend = queda pendiente hasta confirmar por WhatsApp · wa = solo por WhatsApp · sin = sin cita
 // min = minutos de técnico; gdi = 2 por técnico al mismo tiempo; prev = permitido para chinos
-const SUC={al:{n:'Altamira',wa:'7228-9737',horas:48},st:{n:'Santa Tecla',wa:'7229-6889',horas:72}};
+const SUC={al:{n:'Altamira',wa:'7228-9737',horas:48,dir:'Reparto Los Elíseos, block B casa 13, San Salvador',mapa:'https://maps.app.goo.gl/6Ga7SAgmqbkLGJG5A'},st:{n:'Santa Tecla',wa:'7229-6889',horas:72,dir:'1a Av. Norte #2-4, Local #3, Santa Tecla',mapa:'https://maps.app.goo.gl/uaybR2jGShTDTpybA'}};
 const S=[
  ['Mantenimiento preventivo','aceite','Cambio de aceite y filtro','$60–$90',45,'ok','ok','ok',{prev:1,inc:'Incluye hasta 4 cuartos de aceite Valvoline Advanced sintético (5W-20, 5W-30 o 10W-30), filtro Nitoyo y mano de obra. Con 0W-20 queda cerca de $85; si tu motor lleva 5 cuartos, el quinto se cobra aparte.'}],
  ['Mantenimiento preventivo','gdi','Mantenimiento GDI (Hyundai/Kia 1.6 y 2.0)','$80–$90',120,'ok','ok','ok',{prev:1,inc:'Incluye limpieza de inyectores y cuerpo de aceleración, kit de 4 sellos, arandelas y válvula PCV. No incluye cambio de aceite.',gdi:1}],
@@ -498,7 +499,7 @@ function renderHecho(){const x=st.hecho;const s=srvCita(x);
    <p><b>${esc(s.n)}</b> en ${esc(SUC[x.suc].n)} · ${fDia(x.dia)} a las ${h12(x.hora)} · ${esc(x.carro.marca+' '+x.carro.modelo)} (${esc(x.carro.placa)})</p>
    ${x.estado==='pendiente'?`<div class="alert">Para que tu cita quede confirmada, escríbenos al WhatsApp ${SUC[x.suc].wa} con tu tarjeta de circulación y ${s.diag?'la falla que tiene tu carro':'el trabajo que necesitas'}.</div>`:''}
    ${x.estado==='cotizacion'?`<div class="alert">Te enviaremos la cotización por WhatsApp el mismo día hábil. Tendrás 2 horas para confirmar o se libera tu cupo.</div>`:''}
-   <p class="sm">Te pediremos confirmar la cita por WhatsApp ${x.dentro24?'ahora mismo':'24 horas antes'} al número ${esc(x.carro.waIntl||x.carro.wa)}. Si no respondes después de 2 recordatorios, la cita se cancela. Tolerancia de llegada: 1 hora.</p>
+   ${PUBLICO?`<p class="sm">${x.carro.correo?`Te enviamos la confirmación al correo <b>${esc(x.carro.correo)}</b>: respóndela con <b>CONFIRMO</b>. `:''}También puedes confirmar por WhatsApp al <b>${SUC[x.suc].wa}</b>. Si no confirmas, tu espacio podría liberarse. Tolerancia de llegada: 1 hora.</p><p class="sm"><b>Dirección:</b> ${esc(SUC[x.suc].dir)} · <a href="${SUC[x.suc].mapa}" target="_blank" rel="noopener">Cómo llegar (Google Maps)</a></p>`:`<p class="sm">Te pediremos confirmar la cita por WhatsApp ${x.dentro24?'ahora mismo':'24 horas antes'} al número ${esc(x.carro.waIntl||x.carro.wa)}. Si no respondes después de 2 recordatorios, la cita se cancela. Tolerancia de llegada: 1 hora.</p>`}
    <div><button type="button" class="btn" id="otra">Agendar otra cita</button></div></div>`}
 
 // ---------- Vista del asesor ----------
