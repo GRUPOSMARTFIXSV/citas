@@ -579,6 +579,9 @@ function datosFact0(c){const reg=c.existente&&REG.estado==='ok'&&REG.fact;if(c.e
 // Con el conector de HIVE la búsqueda será directa.
 // Evaluación de la cotización (Gustavo 02/11/2026): cada línea se clasifica (repuesto / consumible / trabajo); los trabajos se
 // comparan con el catálogo para saber tiempo y en qué sucursal se pueden hacer; lo que no está en el catálogo se evalúa por palabras.
+// Código de oferta HIVE → servicio del catálogo (sacado de 1714 cotizaciones, 03/11/2026)
+const SF_SERV={SF088:'aceite',SF0888:'aceite',SF119:'ajustefrenos',SF120:'ajustefrenos',SF124:'cvtfull',SF123:'atffull',SF089:'atf',SF090:'atf',SF115:'cvt',SF087:'bujias',SF108:'diag',SF106:'filtros',SF094:'mpi',SF105:'liqfreno',SF091:'gdi',SF092:'gdi',SF0101:'punteria',SF117:'refri',SF097:'refri',SF098:'refri',SF114:'dialisis',SF100:'gas134',SF118:'gas1234',SF095:'fajaacc',SF096:'fajaacc',SF131:'alineado',SF109:'inylab'};
+const SF_CONSUMIBLE=new Set(['SF112','SF128']);   // delivery; nitrógeno y aceite de compresor
 const CONSUMIBLE_RX=/protector higi|limpiador|brake cleaner|silic[oó]n|nitr[oó]geno|delivery|uso interno|uso laboratorio|kits? (pra |para )?laboratorio|arandela|abrazadera|flush/i;
 const TRABAJO_RX=/mano de obra|^mo\b|diagn[oó]stic|revisi[oó]n|rectificad|instalaci[oó]n|programaci|calibraci|alineado|mantenimiento|limpieza|reparaci[oó]n|desmontaje|ajuste|trabajo en torno|servicio|lavado|reapetre|cambio de|clonaci/i;
 const SOLO_TECLA_RX=/programaci|clonaci|calibraci|adas|radar|m[oó]dulo|\babs\b|compresor|evaporador|condensador|el[eé]ctric|cableado|tpms|culata|torno|tanque de combustible|lavado de motor|lavado de veh/i;
@@ -590,10 +593,14 @@ function servicioDeLinea0(d){const ws=normQ(d).split(/\s+/).filter(w=>w.length>=
     for(const a of ws){if(toks.some(w=>w===a||(a.length>=4&&(w.startsWith(a)||a.startsWith(w))&&Math.min(a.length,w.length)>=4)||(a.length>=6&&lev(a,w)<=1)))sc++}
     if(sc>bs){bs=sc;best=x}}return bs>=1?best:null}
 function evaluarCoti(c){const t=tipoCarro();const A=[];let min=0,al=true,st2=true,gdi=false,prev=true,revisar=false,diag=false;
-  (c.lineas||[]).forEach(l=>{const d=l.descripcion||'';
-    if(CONSUMIBLE_RX.test(d)){A.push({d,tipo:'consumible'});return}
-    if(!TRABAJO_RX.test(d)){A.push({d,tipo:'repuesto'});return}
-    const m=servicioDeLinea(d);const soloST=SOLO_TECLA_RX.test(d);
+  (c.lineas||[]).forEach(l=>{const d=l.descripcion||'';const cod=String(l.codigo||'').toUpperCase().trim();
+    // Códigos de oferta de HIVE (Gustavo 03/11/2026): SFxxx = servicio/mano de obra (muchos son un servicio exacto del catálogo),
+    // SFREP y cualquier otro código (números, números de parte) = repuesto o producto. Sin código: se decide por el texto.
+    if(SF_CONSUMIBLE.has(cod)||(!cod&&CONSUMIBLE_RX.test(d))){A.push({d,tipo:'consumible'});return}
+    const esSF=/^SF\d/.test(cod);
+    if(cod&&!esSF){A.push({d,tipo:CONSUMIBLE_RX.test(d)?'consumible':'repuesto'});return}
+    if(!esSF&&!TRABAJO_RX.test(d)){A.push({d,tipo:'repuesto'});return}
+    const m=(SF_SERV[cod]&&S.find(x=>x.id===SF_SERV[cod]))||servicioDeLinea(d);const soloST=SOLO_TECLA_RX.test(d);
     const mi=minIA(d);const esDiag=/diagn[oó]stic/i.test(d)||!!(m&&m.diag);if(esDiag)diag=true;
     if(m){const mm=mi!=null?mi:(m.min||60);min+=mm;if(m.gdi)gdi=true;if(!m.prev)prev=false;const a=!!m.al&&!soloST,s=!!m.st;if(!a)al=false;if(!s)st2=false;A.push({d,tipo:'trabajo',serv:m.n,min:mm,ia:mi!=null,diag:esDiag,suc:a&&s?'ambas':s?'Santa Tecla':'Altamira'})}
     else{const mm=mi!=null?mi:60;min+=mm;prev=false;revisar=mi==null;if(soloST)al=false;A.push({d,tipo:'trabajo',serv:null,min:mm,ia:mi!=null,diag:esDiag,suc:soloST?'Santa Tecla':'ambas'})}});
@@ -629,7 +636,7 @@ function srvDeCoti(c){const e=evaluarCoti(c);c.eval=e;
 async function buscarCoti(n){if(st.coti&&st.coti.buscado===n)return;st.coti={buscado:n,numero:n,msg:'Buscando la cotización '+n+'…'};
   let x=null;try{if(db){const s=await db.doc('cotizaciones/'+n).get();if(s.exists)x=s.data()}}catch(e){}
   if(!st.coti||st.coti.buscado!==n)return;
-  if(x){const c={numero:n,lineas:(x.l||[]).map(([d,tt])=>({descripcion:d,total:tt})),total:x.t,suc:x.suc};const sv=srvDeCoti(c);st.coti={buscado:n,numero:n,lineas:c.lineas,suc:x.suc,eval:c.eval,msg:'Encontramos tu cotización'+(x.f?' del '+x.f.split('-').reverse().join('/'):'')+'. Revisa que sea la tuya.',srv:sv}}
+  if(x){const c={numero:n,lineas:(x.l||[]).map(([d,tt,cod])=>({descripcion:d,total:tt,codigo:cod||''})),total:x.t,suc:x.suc};const sv=srvDeCoti(c);st.coti={buscado:n,numero:n,lineas:c.lineas,suc:x.suc,eval:c.eval,msg:'Encontramos tu cotización'+(x.f?' del '+x.f.split('-').reverse().join('/'):'')+'. Revisa que sea la tuya.',srv:sv}}
   else st.coti={buscado:n,numero:n,lineas:[],msg:'No encontramos la cotización '+n+'. Puedes agendar igual: el asesor la revisará.',srv:{id:'coti',cat:'Cotización',n:'Trabajo cotizado (cot. '+n+')',precio:'Según cotización',min:120,al:'ok',st:'ok',cot:1}};
   st.srvs=['coti'];render();estimarCotiIA()}
 async function leerVin(file){const m=$('#vinmsg');m.textContent='Leyendo el VIN…';try{file=await aImagen(file)}catch(e){m.textContent='No pudimos abrir el archivo. Escribe el VIN.';return}
@@ -734,6 +741,7 @@ render();
   if(canEdit){$('#tab-asesor').hidden=false;db&&db.collection('citas').onSnapshot(snap=>{CITAS=snap.docs.map(d=>({id:d.id,...d.data()}));if(TAB==='asesor')render()},()=>{})}
   escucharOcupacion()})();
 </script>
+
 
 </body>
 </html>
